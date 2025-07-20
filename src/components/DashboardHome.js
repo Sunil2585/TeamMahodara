@@ -305,7 +305,7 @@ export default function Dashboard() {
                   <li key={ev.id} className="text-sm text-yellow-800 flex items-center justify-between">
                     <div className="flex flex-col">
                       <span className="font-semibold">{ev.title}</span>
-                      <span className="text-xs text-gray-600">{new Date(ev.date).toLocaleDateString()}</span>
+                      <span className="text-xs text-gray-600">{new Date(ev.date).toLocaleDateString('en-US')}</span>
                     </div>
                     <button
                       className="ml-2 px-2 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded transition"

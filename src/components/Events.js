@@ -96,6 +96,14 @@ export default function Events() {
               {event.description && (
                 <span className="text-sm text-gray-700">{event.description}</span>
               )}
+               {/* Delete Button */}
+               <button
+                  onClick={() => handleDeleteEvent(event.id)}
+                  className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full px-2 py-1 text-xs font-bold shadow transition"
+                  title="Delete"
+                >
+                  Delete
+                </button>
             </div>
           ))}
         </div>
