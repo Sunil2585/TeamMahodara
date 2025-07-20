@@ -3,7 +3,7 @@ import { supabase } from "../supabaseClient";
 import PageContainer from "../components/PageContainer";
 import BackgroundWrapper from "../components/BackgroundWrapper";
 import { useAuth } from "../hooks/useAuth";
-
+//workingg....
 export default function Contributions() {
   const { user } = useAuth();
   const [contributions, setContributions] = useState([]);
