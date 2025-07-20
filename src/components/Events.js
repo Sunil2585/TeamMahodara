@@ -38,6 +38,17 @@ export default function Events() {
     }
   }
 
+  async function handleDeleteEvent(id) {
+    if (!window.confirm("Are you sure you want to delete this event?")) return;
+    const { error } = await supabase
+      .from("events")
+      .delete()
+      .eq("id", id);
+    if (!error) {
+      fetchEvents();
+    }
+  }
+
   return (
     <BackgroundWrapper>
       <PageContainer title="EVENTS" userName="Samba">
