@@ -10,6 +10,7 @@ export default function Contributions() {
   const [contributor, setContributor] = useState("");
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function Contributions() {
   }, [user]);
 
   const fetchContributions = useCallback(async () => {
+    setInitialLoading(true);
     const { data, error: fetchError } = await supabase
       .from("contributions")
       .select("*")
@@ -36,6 +38,7 @@ export default function Contributions() {
 
     if (fetchError) setError("Failed to fetch contributions.");
     else setContributions(data || []);
+    setInitialLoading(false);
   }, []);
 
   useEffect(() => {
@@ -43,13 +46,14 @@ export default function Contributions() {
   }, [fetchContributions]);
 
   const handlePayOnline = async () => {
-    if (!validateForm()) return;
-    setLoading(true);
-    setError(null); // Clear previous errors
+    if (!validateForm()) return; // Stop if form is invalid
 
-    let newContribution;
+    setLoading(true);
+    setError(null);
+
     try {
-      const { data, error: insertError } = await supabase
+      // Step 1: Create a 'pending' contribution record in the database.
+      const { data: newContribution, error: insertError } = await supabase
         .from("contributions")
         .insert([{
           contributor: contributor.trim(),
@@ -61,23 +65,10 @@ export default function Contributions() {
         .single();
 
       if (insertError) {
-        throw new Error(insertError.message || "Could not save contribution.");
+        throw new Error("Could not save your contribution record. Please try again.");
       }
-      newContribution = data;
-    } catch (err) {
-      setError(`Database error: ${err.message}`);
-      setLoading(false);
-      return;
-    }
 
-    try {
-      console.log("Invoking 'create-cashfree-order' function with:", {
-        amount: +amount,
-        contributor: contributor.trim(),
-        contribution_id: newContribution.id,
-      });
-
-      // Call the Supabase Edge Function
+      // Step 2: Invoke the edge function to get a payment session ID.
       const { data: functionData, error: functionError } = await supabase.functions.invoke('create-cashfree-order', {
         body: {
           amount: +amount,
@@ -86,71 +77,68 @@ export default function Contributions() {
         },
       });
 
-      console.log("Function response:", { functionData, functionError });
-
       if (functionError) {
-        // Handle errors returned from the function itself
-        // The actual error message from the function is in the 'context' property
+        // The actual error from the function is often in the 'context'
         const detailedError = functionError.context?.error || functionError.message;
         throw new Error(detailedError);
       }
 
-      if (functionData && functionData.payment_session_id) {
-        console.log("Received payment session ID:", functionData.payment_session_id);
-        
-        if (!window.Cashfree) {
-          throw new Error("Cashfree SDK is not loaded. Please check your index.html file.");
-        }
-
-        // Initialize the SDK with the mode. The SDK is throwing an error if this is not provided.
-        const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'sandbox';
-        const cashfree = new window.Cashfree({
-          mode: cashfreeMode, // Use environment variable. Defaults to 'sandbox'.
-        });
-        
-        console.log("Initiating Cashfree redirect...");
-        cashfree.checkout({ 
-          paymentSessionId: functionData.payment_session_id, // Pass the session ID here as the error suggests
-          paymentStyle: "redirect"
-        }).then((result) => {
-          if (result.error) {
-            // This is a specific error from the Cashfree SDK if the session_id is invalid
-            console.error("Cashfree SDK reported an error:", result.error);
-            setError(`Payment Error: ${result.error.message}. Please check the console for details.`);
-            setLoading(false);
-          }
-          // If result.redirect is true, the browser will navigate away. No need to do anything.
-        }).catch(err => {
-          // This catches other potential errors during checkout initialization
-          console.error("Error during cashfree.checkout() call:", err);
-          setError(`A problem occurred with the payment gateway: ${err.message}`);
-          setLoading(false);
-        });
-      } else {
-        // This case handles when the function runs but doesn't return the expected data.
+      if (!functionData?.payment_session_id) {
         throw new Error("Failed to get a valid payment session from the server.");
       }
 
+      // Step 3: Use the Cashfree SDK to redirect to checkout.
+      if (!window.Cashfree) {
+        throw new Error("Payment SDK (Cashfree) is not loaded. Please refresh the page.");
+      }
+
+      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'sandbox';
+      const cashfree = new window.Cashfree({ mode: cashfreeMode });
+
+      const result = await cashfree.checkout({
+        paymentSessionId: functionData.payment_session_id,
+        paymentStyle: "redirect"
+      });
+
+      if (result?.error) {
+        // This error is from the Cashfree SDK itself after trying to process the checkout.
+        throw new Error(`Payment Gateway Error: ${result.error.message}`);
+      }
+      // On successful redirect, the browser navigates away. The `finally` block might not run.
+
     } catch (err) {
-      // This will catch errors from the function invocation, or from our own thrown errors.
-      console.error("Payment process error:", err);
-      setError(`Payment initiation failed: ${err.message}`);
+      console.error("Payment process failed:", err);
+      // Provide a user-friendly error message.
+      setError(err.message || "An unexpected error occurred during payment initiation.");
+    } finally {
+      // This ensures the loading state is always reset, especially if the user
+      // closes a payment modal (if not using redirect) or if an error occurs.
       setLoading(false);
     }
   };
 
   const handleAddContribution = async () => {
     if (!validateForm()) return;
+
     setLoading(true);
-    const { error: insertError } = await supabase.from("contributions").insert([
-      { contributor: contributor.trim(), amount: +amount, method: "cash", status: "success" },
-    ]);
-    setLoading(false);
-    if (!insertError) {
-      setAmount("");
+    setError(null);
+
+    try {
+      const { error: insertError } = await supabase.from("contributions").insert([
+        { contributor: contributor.trim(), amount: +amount, method: "cash", status: "success" },
+      ]);
+
+      if (insertError) {
+        throw new Error(insertError.message || "Could not record cash contribution.");
+      }
+
+      setAmount(""); // Only clear amount on success
       fetchContributions();
-    } else {
-      setError("Cash contribution failed.");
+    } catch (err) {
+      console.error("Failed to add cash contribution:", err);
+      setError("Failed to add cash contribution. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -174,7 +162,7 @@ export default function Contributions() {
           <input
             type="text"
             placeholder="Contributor Name"
-            className="rounded px-3 py-2 border"
+            className="rounded-lg px-3 py-2 border border-yellow-400 bg-white/70 focus:outline-none text-black"
             value={contributor}
             onChange={(e) => setContributor(e.target.value)}
             required
@@ -182,8 +170,8 @@ export default function Contributions() {
           <input
             type="number"
             min="1"
-            placeholder="Amount"
-            className="rounded px-3 py-2 border"
+            placeholder="Amount (₹)"
+            className="rounded-lg px-3 py-2 border border-yellow-400 bg-white/70 focus:outline-none text-black"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             required
@@ -191,28 +179,52 @@ export default function Contributions() {
           {error && <div className="text-red-500 text-sm text-center p-2 bg-red-100 rounded">{error}</div>}
           
           <div className="flex gap-2">
-            <button onClick={handleAddContribution} disabled={loading} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded disabled:bg-gray-400">
-              {loading ? "..." : "Add Cash"}
+            <button onClick={handleAddContribution} disabled={loading} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded-lg transition disabled:bg-gray-400">
+              {loading ? "Processing..." : "Add Cash"}
             </button>
-            <button onClick={handlePayOnline} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded disabled:bg-gray-400">
-              {loading ? "..." : "Pay Online"}
+            <button onClick={handlePayOnline} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition disabled:bg-gray-400">
+              {loading ? "Processing..." : "Pay Online"}
             </button>
           </div>
         </div>
 
-        <div className="text-center font-bold mb-2">
-          Total Contribution: ₹{total.toFixed(2)}
+        {/* Total Contributions */}
+        <div className="px-6 pb-2">
+          <div className="flex justify-between items-center bg-green-100 rounded-xl p-3 mb-2 shadow">
+            <span className="font-semibold text-green-900 text-lg">Total Contributions</span>
+            <span className="font-bold text-xl text-green-900">₹ {total.toFixed(2)}</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 px-3 pb-8 mt-4">
-          {contributions.map((c) => (
-            <div key={c.id} className={`rounded shadow p-2 ${c.status === 'success' ? 'bg-green-100' : 'bg-yellow-100'}`}>
-              <div className="font-semibold">{c.contributor}</div>
-              <div>₹{c.amount}</div>
-              <div className="text-xs capitalize">Status: {c.status}</div>
-              
-            </div>
-          ))}
+        {/* Contributions List */}
+        <div className="px-3 pb-8 mt-2">
+          {initialLoading ? (
+            <div className="text-yellow-800 text-center py-8">Loading contributions...</div>
+          ) : contributions.length === 0 ? (
+            <div className="text-yellow-800 text-center py-8">No contributions yet.</div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {contributions.map((c) => (
+                <li
+                  key={c.id}
+                  className={`rounded-xl shadow p-3 flex flex-col relative ${
+                    c.status === 'success' ? 'bg-green-100 border-green-400' : 'bg-yellow-100 border-yellow-400'
+                  } border-l-4`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-bold text-lg text-slate-800">{c.contributor}</span>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      c.status === 'success' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'
+                    }`}>{c.status}</span>
+                  </div>
+                  <div className="flex justify-between items-end">
+                    <span className="font-bold text-xl text-slate-900">₹{c.amount}</span>
+                    <span className="text-xs text-gray-600 capitalize">via {c.method}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </PageContainer>
     </BackgroundWrapper>
