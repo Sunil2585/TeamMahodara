@@ -109,8 +109,10 @@ export default function Contributions() {
         throw new Error("Payment SDK (Cashfree) is not loaded. Please refresh the page.");
       }
 
-      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'sandbox';
-      const cashfree = new window.Cashfree({ mode: cashfreeMode });
+      // The SDK mode MUST match the environment of the Edge Function.
+      // Since the function uses production keys, the mode here must be "production".
+      // Using a sandbox session_id in production mode (or vice-versa) will cause this error.
+      const cashfree = new window.Cashfree({ mode: "production" });
 
       const result = await cashfree.checkout({
         paymentSessionId: functionData.payment_session_id,
