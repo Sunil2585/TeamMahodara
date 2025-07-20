@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import PageContainer from "./PageContainer";
 import BackgroundWrapper from "./BackgroundWrapper";
 import { supabase } from "../supabaseClient";
@@ -9,17 +9,26 @@ export default function Events() {
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    fetchEvents();
-  }, []);
-
-  async function fetchEvents() {
+  
+  const fetchEvents = useCallback(async () => {
     const { data, error } = await supabase
-      .from("events")
-      .select("*")
-      .order("date", { ascending: true });
-    if (!error) setEvents(data || []);
+        .from("events")
+        .select("*")
+        .order("date", { ascending: true });
+    if (error) {
+        console.error("Error fetching events:", error);
+    } else {
+        setEvents(data || []);
+    }
+  }, []);
+  
+    useEffect(() => {
+      fetchEvents();
+  
+      const subscription = supabase
+          .channel('public:events')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, fetchEvents)
+          .subscribe();
   }
 
   async function handleAddEvent(e) {
