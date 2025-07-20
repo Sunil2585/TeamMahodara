@@ -69,13 +69,13 @@ serve(async (req) => {
           customer_name: contributor,
           // This is a required field by Cashfree.
           // If you don't collect a phone number, a placeholder is necessary.
-          customer_phone: '9999999999',
+          customer_phone: '8919135987',
         },
         order_meta: {
           // The {order_id} placeholder will be replaced by Cashfree upon redirect.
           return_url: `${appUrl}/payment-status?order_id={order_id}`,
-          // Add the webhook notification URL to receive server-to-server updates.
-          notify_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/cashfree-webhook`,
+          // This must match the name of your deployed webhook function folder.
+          notify_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/create-cashfree-webhook`,
         },
       }),
     });

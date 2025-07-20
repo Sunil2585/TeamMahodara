@@ -40,13 +40,17 @@ export default function Dashboard() {
     async function fetchSummary() {
       const [exp, cont, task] = await Promise.all([
         supabase.from("expenses").select("id,amount"),
-        supabase.from("contributions").select("id,amount"),
+        // Select status as well to filter for successful contributions
+        supabase.from("contributions").select("id,amount,status"),
         supabase.from("tasks").select("id"),
       ]);
       const totalExpenses =
         exp.data?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0;
+      // Calculate total only from successful contributions, matching the Contributions page
       const totalContributions =
-        cont.data?.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0) || 0;
+        cont.data
+          ?.filter(c => c.status === 'success')
+          .reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0) || 0;
       setSummary({
         expenses: exp.data?.length || 0,
         contributions: cont.data?.length || 0,
