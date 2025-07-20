@@ -113,7 +113,7 @@ export default function Contributions() {
       const cashfree = new window.Cashfree({ mode: cashfreeMode });
 
       const result = await cashfree.checkout({
-        payment_session_id: functionData.payment_session_id,
+        paymentSessionId: functionData.payment_session_id,
         paymentStyle: "redirect"
       });
 
