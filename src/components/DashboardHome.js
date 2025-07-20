@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import Ganseshback from "../assets/hjsk.png";
 import logo from "../assets/Tmlogo.jpg";
@@ -16,6 +16,19 @@ export default function Dashboard() {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [userName, setUserName] = useState("");
   const navigate = useNavigate();
+
+  // Using useCallback to memoize the fetch function, preventing re-creation on each render.
+  // This makes it safe to use in a useEffect dependency array.
+  const fetchUpcomingEvents = useCallback(async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const { data } = await supabase
+      .from("events")
+      .select("*")
+      .gte("date", today)
+      .order("date", { ascending: true })
+      .limit(3);
+    setUpcomingEvents(data || []);
+  }, []);
 
   useEffect(() => {
     async function checkAuthAndFetchName() {
@@ -37,7 +50,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    async function fetchSummary() {
+    const fetchSummary = async () => {
       const [exp, cont, task] = await Promise.all([
         supabase.from("expenses").select("id,amount"),
         // Select status as well to filter for successful contributions
@@ -58,20 +71,26 @@ export default function Dashboard() {
         totalExpenses,
         totalContributions,
       });
-    }
-    async function fetchUpcomingEvents() {
-      const today = new Date().toISOString().slice(0, 10);
-      const { data } = await supabase
-        .from("events")
-        .select("*")
-        .gte("date", today)
-        .order("date", { ascending: true })
-        .limit(3);
-      setUpcomingEvents(data || []);
-    }
+    };
+
+    // Initial data fetch
     fetchSummary();
     fetchUpcomingEvents();
-  }, []);
+
+    // Set up a real-time subscription to the 'events' table.
+    // This will automatically refetch the events list whenever a change occurs.
+    const channel = supabase
+      .channel('public:events')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
+        fetchUpcomingEvents();
+      })
+      .subscribe();
+
+    // Cleanup: remove the subscription when the component unmounts.
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchUpcomingEvents]);
 
   const expensesAmount = `₹ ${summary.totalExpenses}`;
   const contributionsAmount = `₹ ${summary.totalContributions}`;
@@ -124,10 +143,8 @@ export default function Dashboard() {
   // Delete event handler
   async function handleDeleteEvent(eventId) {
     if (window.confirm("Are you sure you want to delete this event?")) {
-      const { error } = await supabase.from("events").delete().eq("id", eventId);
-      if (!error) {
-        setUpcomingEvents((prev) => prev.filter(ev => ev.id !== eventId));
-      }
+      // The real-time subscription will handle updating the UI automatically after the delete.
+      await supabase.from("events").delete().eq("id", eventId);
     }
   }
 
