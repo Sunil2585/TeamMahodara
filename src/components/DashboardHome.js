@@ -30,6 +30,30 @@ export default function Dashboard() {
     setUpcomingEvents(data || []);
   }, []);
 
+  // Centralized function to fetch all summary data.
+  const fetchSummary = useCallback(async () => {
+    const [exp, cont, task] = await Promise.all([
+      supabase.from("expenses").select("id,amount"),
+      supabase.from("contributions").select("id,amount,status"),
+      supabase.from("tasks").select("id"),
+    ]);
+
+    const totalExpenses =
+      exp.data?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0;
+    const totalContributions =
+      cont.data
+        ?.filter((c) => c.status === "success")
+        .reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0) || 0;
+
+    setSummary({
+      expenses: exp.data?.length || 0,
+      contributions: cont.data?.length || 0,
+      tasks: task.data?.length || 0,
+      totalExpenses,
+      totalContributions,
+    });
+  }, []);
+
   useEffect(() => {
     async function checkAuthAndFetchName() {
       const {
@@ -50,47 +74,33 @@ export default function Dashboard() {
   }, [navigate]);
 
   useEffect(() => {
-    const fetchSummary = async () => {
-      const [exp, cont, task] = await Promise.all([
-        supabase.from("expenses").select("id,amount"),
-        // Select status as well to filter for successful contributions
-        supabase.from("contributions").select("id,amount,status"),
-        supabase.from("tasks").select("id"),
-      ]);
-      const totalExpenses =
-        exp.data?.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0) || 0;
-      // Calculate total only from successful contributions, matching the Contributions page
-      const totalContributions =
-        cont.data
-          ?.filter(c => c.status === 'success')
-          .reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0) || 0;
-      setSummary({
-        expenses: exp.data?.length || 0,
-        contributions: cont.data?.length || 0,
-        tasks: task.data?.length || 0,
-        totalExpenses,
-        totalContributions,
-      });
-    };
-
     // Initial data fetch
     fetchSummary();
     fetchUpcomingEvents();
 
-    // Set up a real-time subscription to the 'events' table.
-    // This will automatically refetch the events list whenever a change occurs.
-    const channel = supabase
-      .channel('public:events')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, payload => {
-        fetchUpcomingEvents();
-      })
-      .subscribe();
+    // Set up real-time subscriptions for all relevant tables.
+    // Any change in these tables will trigger a refetch of the corresponding data.
+    const subscriptions = [
+      { table: 'events', callback: fetchUpcomingEvents },
+      { table: 'contributions', callback: fetchSummary },
+      { table: 'expenses', callback: fetchSummary },
+      { table: 'tasks', callback: fetchSummary },
+    ];
 
-    // Cleanup: remove the subscription when the component unmounts.
+    const channels = subscriptions.map(sub => 
+      supabase
+        .channel(`public:${sub.table}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: sub.table }, () => {
+          sub.callback();
+        })
+        .subscribe()
+    );
+
+    // Cleanup: remove all subscriptions when the component unmounts.
     return () => {
-      supabase.removeChannel(channel);
+      channels.forEach(channel => supabase.removeChannel(channel));
     };
-  }, [fetchUpcomingEvents]);
+  }, [fetchUpcomingEvents, fetchSummary]);
 
   const expensesAmount = `₹ ${summary.totalExpenses}`;
   const contributionsAmount = `₹ ${summary.totalContributions}`;
