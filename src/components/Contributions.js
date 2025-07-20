@@ -16,12 +16,17 @@ export default function Contributions() {
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
-        const { data } = await supabase
+        // Use .single() and handle the potential error if no profile exists yet.
+        const { data, error: profileError } = await supabase
           .from("users")
           .select("name")
           .eq("id", user.id)
           .single();
-        if (data?.name) {
+        if (profileError && profileError.code !== 'PGRST116') {
+          // PGRST116 means no rows found, which is not a critical error here.
+          // We can log other errors for debugging.
+          console.error("Error fetching user profile:", profileError);
+        } else if (data?.name) {
           setContributor(data.name);
         }
       }
@@ -78,9 +83,20 @@ export default function Contributions() {
       });
 
       if (functionError) {
-        // The actual error from the function is often in the 'context'
-        const detailedError = functionError.context?.error || functionError.message;
-        throw new Error(detailedError);
+        // The generic error is "Edge Function returned a non-2xx status code".
+        // We need to parse the JSON body from the error response to get the real message.
+        // The 'context' property of the functionError is the raw Response object.
+        let detailedErrorMessage = "An unknown error occurred with the payment function.";
+        if (functionError.context && typeof functionError.context.json === 'function') {
+          try {
+            const errorBody = await functionError.context.json();
+            detailedErrorMessage = errorBody.error || functionError.message;
+          } catch (e) {
+            // If parsing fails, use the default Supabase client error message.
+            detailedErrorMessage = functionError.message;
+          }
+        }
+        throw new Error(detailedErrorMessage);
       }
 
       if (!functionData?.payment_session_id) {
@@ -92,7 +108,7 @@ export default function Contributions() {
         throw new Error("Payment SDK (Cashfree) is not loaded. Please refresh the page.");
       }
 
-      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'sandbox';
+      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'production';
       const cashfree = new window.Cashfree({ mode: cashfreeMode });
 
       const result = await cashfree.checkout({
