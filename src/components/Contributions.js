@@ -109,7 +109,7 @@ export default function Contributions() {
         throw new Error("Payment SDK (Cashfree) is not loaded. Please refresh the page.");
       }
 
-      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'production';
+      const cashfreeMode = process.env.REACT_APP_CASHFREE_MODE || 'sandbox';
       const cashfree = new window.Cashfree({ mode: cashfreeMode });
 
       const result = await cashfree.checkout({
