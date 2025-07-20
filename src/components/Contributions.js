@@ -78,7 +78,8 @@ export default function Contributions() {
         body: {
           amount: +amount,
           contributor: contributor.trim(),
-          contribution_id: newContribution.id,
+          // Ensure the ID is a string, as the edge function expects.
+          contribution_id: String(newContribution.id),
         },
       });
 
