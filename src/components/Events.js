@@ -29,7 +29,11 @@ export default function Events() {
           .channel('public:events')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, fetchEvents)
           .subscribe();
-  }
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    }, [fetchEvents]);
 
   async function handleAddEvent(e) {
     e.preventDefault();
