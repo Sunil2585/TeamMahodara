@@ -13,8 +13,11 @@ import Info from "./components/Info";
 import Login from "./components/Login";
 import Signup from "./components/Signup";
 import NotificationListener from "./components/NotificationListener";
+import Planning from "./components/Planning"; // Import the new Planning component
 import AdminApprove from "./components/AdminApprove";
 import { AuthProvider, useAuth } from "./hooks/useAuth"; // Import AuthProvider and useAuth
+
+const ADMIN_EMAIL = "sambangisunil12@gmail.com"; // Admin's email address
 
 // This new ProtectedRoute component uses the useAuth hook
 // to get user and loading state, replacing the old AuthGuard.
@@ -36,6 +39,26 @@ function ProtectedRoute({ children }) {
   }
 
   // If the user is authenticated, render the requested component
+  return children;
+}
+
+// A new route guard for admin-only pages
+function AdminRoute({ children }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  // If there is no user, or the user is not an admin, redirect to dashboard
+  if (!user || user.email !== ADMIN_EMAIL) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return children;
 }
 
@@ -66,6 +89,7 @@ function AppLayout() {
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/events" element={<ProtectedRoute><Events /></ProtectedRoute>} />
         <Route path="/info" element={<ProtectedRoute><Info /></ProtectedRoute>} />
+        <Route path="/planning" element={<AdminRoute><Planning /></AdminRoute>} />
 
         {/* Default and catch-all routes */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

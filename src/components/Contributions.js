@@ -3,7 +3,12 @@ import { supabase } from "../supabaseClient";
 import PageContainer from "../components/PageContainer";
 import BackgroundWrapper from "../components/BackgroundWrapper";
 import { useAuth } from "../hooks/useAuth";
-//workingg....
+import { EllipsisVerticalIcon, TrashIcon } from "@heroicons/react/24/solid";
+const ADMIN_EMAILS = [
+  "sambangisunil12@gmail.com",
+  // Add other admin emails here
+];
+
 export default function Contributions() {
   const { user } = useAuth();
   const [contributions, setContributions] = useState([]);
@@ -12,10 +17,13 @@ export default function Contributions() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndCheckAdmin = async () => {
       if (user) {
+        setIsAdmin(ADMIN_EMAILS.includes(user.email));
         // Use .single() and handle the potential error if no profile exists yet.
         const { data, error: profileError } = await supabase
           .from("users")
@@ -31,7 +39,7 @@ export default function Contributions() {
         }
       }
     };
-    fetchProfile();
+    fetchProfileAndCheckAdmin();
   }, [user]);
 
   const fetchContributions = useCallback(async () => {
@@ -50,6 +58,27 @@ export default function Contributions() {
     fetchContributions();
   }, [fetchContributions]);
 
+  const handleDeleteContribution = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this contribution?")) {
+      return;
+    }
+    setError(null);
+    try {
+      const { error: deleteError } = await supabase
+        .from("contributions")
+        .delete()
+        .eq("id", id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+      // Update state locally for a faster UI response
+      setContributions((prev) => prev.filter((c) => c.id !== id));
+    } catch (err) {
+      setError(err.message || "Failed to delete contribution.");
+      console.error("Error deleting contribution:", err);
+    }
+  };
   const handlePayOnline = async () => {
     if (!validateForm()) return; // Stop if form is invalid
 
@@ -198,9 +227,11 @@ export default function Contributions() {
           {error && <div className="text-red-500 text-sm text-center p-2 bg-red-100 rounded">{error}</div>}
           
           <div className="flex gap-2">
-            <button onClick={handleAddContribution} disabled={loading} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded-lg transition disabled:bg-gray-400">
-              {loading ? "Processing..." : "Add Cash"}
-            </button>
+            {isAdmin && (
+              <button onClick={handleAddContribution} disabled={loading} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 rounded-lg transition disabled:bg-gray-400">
+                {loading ? "Processing..." : "Add Cash"}
+              </button>
+            )}
             <button onClick={handlePayOnline} disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg transition disabled:bg-gray-400">
               {loading ? "Processing..." : "Pay Online"}
             </button>
@@ -230,7 +261,7 @@ export default function Contributions() {
                     c.status === 'success' ? 'bg-green-100 border-green-400' : 'bg-yellow-100 border-yellow-400'
                   } border-l-4`}
                 >
-                  <div className="flex justify-between items-start mb-1">
+                  <div className={`flex justify-between items-start mb-1 ${isAdmin ? 'pr-8' : ''}`}>
                     <span className="font-bold text-lg text-slate-800">{c.contributor}</span>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                       c.status === 'success' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'
@@ -240,6 +271,31 @@ export default function Contributions() {
                     <span className="font-bold text-xl text-slate-900">₹{c.amount}</span>
                     <span className="text-xs text-gray-600 capitalize">via {c.method}</span>
                   </div>
+                  {isAdmin && (
+                    <div className="absolute top-2 right-2">
+                      <button
+                        onClick={() => setOpenMenuId(openMenuId === c.id ? null : c.id)}
+                        className="p-1 rounded-full hover:bg-gray-200/80 transition"
+                        title="More options"
+                      >
+                        <EllipsisVerticalIcon className="w-5 h-5 text-gray-700" />
+                      </button>
+                      {openMenuId === c.id && (
+                        <div className="absolute right-0 mt-2 w-36 bg-white rounded-md shadow-lg z-10 border border-gray-200">
+                          <button
+                            onClick={() => {
+                              handleDeleteContribution(c.id);
+                              setOpenMenuId(null);
+                            }}
+                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

@@ -3,7 +3,16 @@ import { supabase } from "../supabaseClient";
 import Ganseshback from "../assets/hjsk.png";
 import logo from "../assets/Tmlogo.jpg";
 import { Link, useNavigate } from "react-router-dom";
-import { CalendarDaysIcon, PlusIcon } from "@heroicons/react/24/solid";
+import {
+  CalendarDaysIcon,
+  PlusIcon,
+  PencilSquareIcon,
+} from "@heroicons/react/24/solid";
+
+const ADMIN_EMAILS = [
+  "sambangisunil12@gmail.com",
+  // Add other admin emails here
+];
 
 export default function Dashboard() {
   const [summary, setSummary] = useState({
@@ -15,6 +24,7 @@ export default function Dashboard() {
   });
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [userName, setUserName] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
 
   // Using useCallback to memoize the fetch function, preventing re-creation on each render.
@@ -62,6 +72,7 @@ export default function Dashboard() {
       if (!user) {
         navigate("/login", { replace: true });
       } else {
+        setIsAdmin(ADMIN_EMAILS.includes(user.email));
         const { data: userData } = await supabase
           .from("users")
           .select("name")
@@ -319,6 +330,32 @@ export default function Dashboard() {
               </ul>
             )}
           </div>
+          {/* Planning Block */}
+          {isAdmin && (
+            <div
+              className="col-span-2 rounded-xl shadow p-4 flex flex-col items-center justify-center gap-2 bg-blue-100/80 transition"
+              style={{
+                minHeight: "80px",
+                fontSize: "1.1rem",
+                background: "rgba(219, 234, 254, 0.7)",
+                backdropFilter: "blur(2px)",
+              }}
+            >
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <PencilSquareIcon className="w-5 h-5 text-blue-700" />
+                  <span className="font-bold text-blue-900">Planning</span>
+                </div>
+                <Link
+                  to="/planning"
+                  className="flex items-center gap-1 bg-blue-200 border border-blue-400 rounded-full px-2 py-1 text-xs font-semibold text-blue-900 shadow hover:bg-blue-300 transition"
+                  title="Go to Planning"
+                >
+                  Go to Planning
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

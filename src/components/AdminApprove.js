@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 
-const ADMIN_EMAIL = "sambangisunil12@gmail.com"; // Change to your admin email
+const ADMIN_EMAILS = [
+  "sambangisunil12@gmail.com",
+  "gurajarahul@gmail.com",
+  "bandaruvijaykumar7@gmail.com",
+  "bhargavnayini@gmail.com"
+  
+];
 
 export default function AdminApprove() {
   const [pendingUsers, setPendingUsers] = useState([]);
@@ -12,7 +18,7 @@ export default function AdminApprove() {
   useEffect(() => {
     async function checkAdminAndFetch() {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user || user.email !== ADMIN_EMAIL) {
+      if (!user || !ADMIN_EMAILS.includes(user.email)) {
         setErrorMsg("Access denied. You are not the admin.");
         setLoading(false);
         return;
