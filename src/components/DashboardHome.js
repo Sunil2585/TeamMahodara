@@ -11,6 +11,7 @@ import {
 
 const ADMIN_EMAILS = [
   "sambangisunil12@gmail.com",
+  "gurajarahul@gmail.com"
   // Add other admin emails here
 ];
 
