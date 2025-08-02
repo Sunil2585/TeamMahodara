@@ -7,7 +7,8 @@ import { EllipsisVerticalIcon, TrashIcon } from "@heroicons/react/24/solid";
 const ADMIN_EMAILS = [
   "sambangisunil12@gmail.com",
   "bandaruvijaykumar7@gmail.com",
-  "bhargavnayini@gmail.com"
+  "bhargavnayini@gmail.com",
+  "gurajarahul@gmail.com"
 ];
 
 export default function Contributions() {
