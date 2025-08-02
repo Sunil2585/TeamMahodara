@@ -6,7 +6,8 @@ import { useAuth } from "../hooks/useAuth";
 import { EllipsisVerticalIcon, TrashIcon } from "@heroicons/react/24/solid";
 const ADMIN_EMAILS = [
   "sambangisunil12@gmail.com",
-  // Add other admin emails here
+  "bandaruvijaykumar7@gmail.com",
+  "bhargavnayini@gmail.com"
 ];
 
 export default function Contributions() {
