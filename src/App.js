@@ -21,10 +21,15 @@ import { supabase } from "./supabaseClient";
 function AuthGuard({ children }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState(null);
+  const [authError, setAuthError] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) setAuthError(error.message);
       setSession(session);
+      setLoading(false);
+    }).catch((error) => {
+      setAuthError(error.message || "Unable to restore your session.");
       setLoading(false);
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -35,8 +40,21 @@ function AuthGuard({ children }) {
     };
   }, []);
 
-  if (loading) return null; // Or a loading spinner
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#2D0900] text-[#FFD700]">
+        Loading your session...
+      </div>
+    );
+  }
 
+  if (authError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#2D0900] px-6 text-center text-red-300">
+        {authError}
+      </div>
+    );
+  }
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }

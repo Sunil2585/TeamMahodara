@@ -43,6 +43,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [googleLoading, setGoogleLoading] = useState(false);
   const navigate = useNavigate();
 
   // Email/Password login
@@ -64,12 +65,18 @@ export default function Login() {
 
   // Google login (with redirect)
   const handleGoogleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
+    setGoogleLoading(true);
+    setErrorMsg("");
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/dashboard`,
+        redirectTo: `${window.location.origin}${window.location.pathname.replace(/\/(login|signup)\/?$/, "/")}`,
       },
     });
+    if (error) {
+      setGoogleLoading(false);
+      setErrorMsg(error.message);
+    }
   };
 
   return (
@@ -135,10 +142,11 @@ export default function Login() {
         <button
           type="button"
           onClick={handleGoogleLogin}
+          disabled={googleLoading}
           className="w-full mb-2 py-3 rounded-xl bg-white text-[#2D0900] font-bold text-lg shadow-lg flex items-center justify-center hover:bg-[#FFD700] transition-transform duration-300 hover:scale-105"
         >
           <GoogleIcon className="w-6 h-6 mr-2" />
-          Sign in with Google
+          {googleLoading ? "Redirecting..." : "Sign in with Google"}
         </button>
         <div className="text-center mt-4">
           <a
